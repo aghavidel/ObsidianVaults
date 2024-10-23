@@ -6,3 +6,6 @@ Personal-PC
 
 ## Except CSS snippets
 !**/.obsidian/snippets
+
+# Ignore stfolder config
+.stfolder
