@@ -1,0 +1,5 @@
+# This directory is a Syncthing folder marker.
+# Do not delete.
+
+folderID: iopsn-zfydq
+created: 2024-10-22T18:47:12-07:00

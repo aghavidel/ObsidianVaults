@@ -1,0 +1,8 @@
+# Ignore the personal PC vault for now
+Personal-PC
+
+# Ignore all .obsidian directories
+**/.obsidian
+
+## Except CSS snippets
+!**/.obsidian/snippets
