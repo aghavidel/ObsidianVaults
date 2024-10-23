@@ -2,10 +2,12 @@
 Personal-PC
 
 # Ignore all .obsidian directories
-**/.obsidian
+*/.obsidian
 
 ## Except CSS snippets
-!**/.obsidian/snippets
+!*/.obsidian/snippets
 
-# Ignore stfolder config
+# Ignore stfolder/stignore config
 Network-and-Systems/.stfolder
+Network-and-Systems/.stignore
+
