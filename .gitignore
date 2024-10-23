@@ -5,7 +5,7 @@ Personal-PC
 Network-and-Systems/.obsidian
 
 ## Except CSS snippets
-!Network-and-Systems/.obsidian/snippets
+!Network-and-Systems/.obsidian/snippets/*
 
 # Ignore stfolder/stignore config
 Network-and-Systems/.stfolder
