@@ -2,7 +2,7 @@
 Personal-PC
 
 # Ignore all .obsidian directories
-Network-and-Systems/.obsidian/
+Network-and-Systems/.obsidian/*
 
 ## Except CSS snippets
 !Network-and-Systems/.obsidian/snippets/
