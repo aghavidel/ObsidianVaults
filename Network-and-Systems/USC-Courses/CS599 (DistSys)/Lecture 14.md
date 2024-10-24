@@ -19,6 +19,11 @@ We want to:
 - Make read-only transactions as fast as possible (high priority)
 - Make the whole thing externally synchronous
 
+>[!FAQ] Didn't We Just Learn 2PC?
+>2PC still relies on locks to make sure that ongoing transactions don't race on the same replica. As such, if two *read only* transactions land on the same data instance, one of them will have to wait. Waiting here means that the node will take time to answer the `PREPARE` message and vote for commit or abort.
+>
+>This is even worse here, since Google's Spanner is supposed to be Geo-Replicated! Even reaching a coordinator for 2PC can be time consuming, since the coordinator can be hundreds of milliseconds away from where cohorts are!!
+
 # Spanner: Google's Geo-Replicated Database
 
 Before discussing Spanner, let's discuss the case for read-only transactions.
@@ -26,17 +31,20 @@ Before discussing Spanner, let's discuss the case for read-only transactions.
 ## Read-Only Transactions
 
 Take RAMCloud for instance:
+
+![[Pasted image 20241024013859.png|400]]
+
 - A transaction from the client is emitted to the server, it will want to log multiple `PREPARE` entries on the server.
 - All `PREPARE` logs are made durable in the backups. During this time, all objects that we read are locked.
 - After the above, all `DECISION` logs also need to be made durable when they come.
 
-Thus, in effect, we have **2 RTTs** of time for which an object is locked. If any read-write transaction comes in during this time, the performance would be awful.
+Thus, in effect, we have **1 RTT + 1 FORCED LOG WRITE** of time for which an object is locked, **with the RTT of a WAN!**. If any read-write transaction comes in during this time, the performance would be awful.
 
 How to handle this?
 There are multiple ways, two important ones:
 - **Optimistic Locking:** Version each object, when the transaction starts, read all objects, but before returning, re-check the version (no locking is involved).
   If version has changed, abort, if not, return.
-  Returns fresh data always, but may abort.
+  Returns fresh data always, but may abort. (This is what RAMCloud did)
 - **Snapshot Isolation:** Keep consistent snapshots of data for certain timestamps. For each read transaction, demand a minimum timestamp and return the oldest snapshot.
   Returns minimally stale data that is guaranteed consistency and never aborts.
 

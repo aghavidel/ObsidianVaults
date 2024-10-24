@@ -244,4 +244,3 @@ Afterwards, we need to bump up `TID_l` and `TID_h`, it is not safe to reuse that
 ![[Pasted image 20241015132951.png|500]]
 
 The protocol itself messages in exactly the same way as `PrC` would, but the difference is with what we write in the logs. For read-only transactions, we can be as lazy as we want to be.
-
