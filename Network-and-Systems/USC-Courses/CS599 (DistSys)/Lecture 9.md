@@ -20,14 +20,13 @@ On the other hand, we guarantee that for the data that we *don't* lose, we are c
 ![[Pasted image 20240926122023.png|500]]
 
 A chain consists of a `HEAD` node and a `TAIL` node. 
-- The head is the only node that receives write operations and updates.
-- The tail node is the only one that is allowed to reply to queries (even updates issued to the head)
-- Requests from the head are forwarded to the tail over a reliable FIFO link.
+- `HEAD` is the only node that receives write operations and updates.
+- `TAIL` is the only one that is allowed to reply to queries (even updates issued to the head)
+- Requests from `HEAD` are forwarded to `TAIL` over a reliable FIFO link.
 
 This has some nice properties:
-- When the tail replies to an update, we can be sure that the tail and all nodes behind it know about the updates.
-- The tail linearizes reads, so we still have linearizability.
-
+- When `TAIL` replies to an update, we can be sure that `TAIL` and all nodes behind it know about the updates.
+- The tail linearizes reads, so we still have linearizability (this is why we don't read from anywhere in between, we won't linearizability in that case!).
 ### Failures
 
 We should look into 3 scenarios:
@@ -35,10 +34,10 @@ We should look into 3 scenarios:
 	- In this case, the master will notice failure and elect the next node in chain to be the head.
 	  The previous head can become a zombie because of this, as such the new head must be configured to reject all updates from anyone other than itself.
 - Tail fails:
-	- The master again detects failure and elects the ancestor of the previous tail to be the new tail. The previous tail can once again become a zombie. We need some leasing mechanism to prevent that from keeping in there.
+	- The master again detects failure and elects the ancestor of the previous tail to be the new tail. The previous tail can once again become a zombie. We need some leasing mechanism to prevent that from keeping that state and being useless.
 - A node within the chain fails:
 	- We must update its predecessor to tell the ancestor of the failed node that it is the new predecessor.
-	- We also need to keep track of inflight requests in the head. If the a node in the middle of the chain dies, then the nodes further down the chain may not receive any in-flight update. So we need to keep track of them and resend them if needed. **Only the tail can ACK updates to the head and remove them from the set of in-flight updates**.
+	- We also need to keep track of inflight requests in the head. If a node in the middle of the chain dies, then the nodes further down the chain may not receive any in-flight update. So we need to keep track of them and resend them if needed. **Only the tail can ACK updates to the head and remove them from the set of in-flight updates**.
 
 ## Differences With Primary-Backup Scheme
 
@@ -47,4 +46,3 @@ We should look into 3 scenarios:
 
 ![[Pasted image 20240926125427.png]]
 
-0                                                                                              

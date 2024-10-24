@@ -40,6 +40,7 @@ PBFT is built on the following assumptions:
 - Broadcasts and Multicasts are feasible. We cannot assume what the set of working servers are at any point, so we would just scream everything at everyone, even if it is none of their business.
 	- This has a downside, broadcasts are not efficient, even today! Thus, this always ends up with a quadratic unicast message complexity. This is one of the main downsides of PBFT.
 - At most $f$ lying nodes can exist any point.
+- Network can be arbitrarily unreliable, even if nodes are not lying, but Byzantine nodes can slow down the network.
 - Messages can be efficiently signed and parsed.
 	- We need this in Byzantine scenarios, since a lying node can impersonate an honest node. We need signatures to make sure that this cannot be done easily.
 
@@ -68,11 +69,14 @@ With the above, PBFT operates in 3 phases:
 - `COMMIT`: Any node that has accepted a `PRE-PREPARE` message, waits until it gets $2f+1$ `PREPARE` messages that match the `PRE-PREPARE`, and at that point, record is committed. A commit message is screamed throughout the cluster.
 	- A commit message looks exactly like the `PREPARE` message, just with a different type field.
 
+>[!FAQ] Why Use The Digest?
+>The algorithm for signing is not very fast, so you should try to keep the aggregate of things with $\langle \rangle_{\sigma_i}$ pretty small. Putting a message in there would be too much!
+
 Thus, a normal operation of this system, where no view changes happen, would look like:
 - A client reaching out to the primary node with a message $m$.
 - The primary (which could be faulty!) is *supposed* to scream `PRE-PREPARE` messages in the cluster (of course, it may do other things if it is Byzantine).
 - Each replica gets the `PRE-PREPARE`. A replica may reject the message (if it is Byzantine, or if it suspects that leader itself is Byzantine). A non-faulty node that rejects this message would **do nothing**.
-- A replica that accepts a `PRE-PREPARE`, would scream `PREPARE` at the whole cluster, and wait for an extra `2f` messages of this kind to be reflected back to it. Thus by the end, it would have at least $2f+1$ `PREPARE` messages, with the aforementioned `PRE-PREPARE` message. **All of these are committed to the log** and only then, the message is committed.
+- A replica that accepts a `PRE-PREPARE`, would scream `PREPARE` at the whole cluster, and wait for an extra $2f$ messages of this kind to be reflected back to it. Thus by the end, it would have at least $2f+1$ `PREPARE` messages, with the aforementioned `PRE-PREPARE` message. **All of these are committed to the log** and only then, the message is committed.
 - After the message is written to the log, we will scream `COMMIT` messages at the rest of the cluster.
 
 "READ VIEW CHANGE FROM THE PAPER, I LITERARILY DID NOT UNDERSTAND THE PROFESSOR'S DESCRIPTION!"
