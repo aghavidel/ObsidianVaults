@@ -1,5 +1,5 @@
 **Title:** Achieving High Utilization with Software Driven WAN
-**Link:** [Achieving high utilization with software-driven WAN (acm.org)](https://dl.acm.org/doi/pdf/10.1145/2534169.2486012)
+**Link:** [Achieving high utilization with software-driven WAN (acm.org)]([Achieving-High-Utilization-with-Software-Driven-WAN.pdf](https://www.microsoft.com/en-us/research/wp-content/uploads/2013/08/Achieving-High-Utilization-with-Software-Driven-WAN.pdf?msockid=3c8c97b7b46b65e6396b8334b54664d4))
 **Conference:** SIGCOMM 2013
 
 # Abstract
@@ -26,4 +26,5 @@ The key points that allow for a congestion-free update to switches is:
 - Decrease the total number of rules required to push into switches, by using the minimum amount of paths  required to carry traffic.
   This in turn, also makes sure that capacity utilization is held at maximum.
 
-# Motivation
+We discussed SWAN in the context of [[USC-Courses/CS659 (Cloud Networks)/Lecture 14|Lecture 14]] for CS656, but here, we try to focus more on the algorithmic part of it, since we will refer to it for TE solutions later on.
+As such, we will skip most of the motivation aspect and background and go directly to problem formulation.
