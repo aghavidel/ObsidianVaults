@@ -4,7 +4,7 @@ This note is in reference to the grand-daddy of pretty much every Byzantine faul
 
 The goal is to implement a *practical* algorithm (one that is not heavy in computation and reasonably live) that can withstand malicious nodes (i.e. Byzantine nodes). In the above, computation mainly refers to message integrity verification (i.e. digital signatures, or hashing).
 
-The promise of the algorithm is that it provides safety and liveness for any state machine replication algorithm in a network of $n$ nodes, provided that at any point of time, at most $\lfloor \frac{n-1}{3} \rfloor$ of the topology is faulty (faulty meaning crashed and/or malicious).
+The promise of the algorithm is that it provides safety and liveness for any state machine replication algorithm in a network of $n$ nodes, provided that at any point of time, at most $\lfloor \frac{n-1}{3} \rfloor$ of the topology is faulty (faulty meaning malicious, not crashing).
 
 We'll describe the exact meaning of the safety condition, and what it entails later.
 
@@ -72,12 +72,14 @@ We will see that the above is good enough to provide linearizability, but not go
 
 # Design
 
-The algorithm is carried out throughout rounds that we call *views*. Each view is indexed with a number. We start from view 0 by default.
+The algorithm is carried out through rounds that we call *views*. Each view is indexed with a number. We start from view 0 by default.
 
 Let $\mathcal{R}$ be the set of replicas. The algorithm requires that $|\mathcal{R}| > 3f$. There is no reason to go above $3f+1$, since it would just increase communication overhead, so we just let the number of replicas be exactly $n=3f+1$. 
 In this case, we can index each replica as $0,1,2, ..., 3f$. We use this to define the *primary* node of a view $v$ as the node index $v\mod{n}$.
 
-Thus, as views change, so do replicas, and it is also possible that a faulty node actually becomes a replica. As we will see, if this node attempts to do anything harmful, the view will change and we come up with a new replica as the primary.
+***Take node of the fact that the primary of each view is deterministic! (this is crucial in proving view-change protocol correctness ...)***
+
+Thus, as views change, so do primaries, and it is also possible that a faulty node actually becomes a primary. As we will see, if this node attempts to do anything harmful, the view will change and we come up with a new replica as the primary.
 
 The general workflow of the algorithm when nothing bad is happening is like the following:
 - An authenticated client issues a request, which invokes some service on the current primary node.
@@ -100,6 +102,9 @@ The client waits, and as such, it needs to have a timeout. Once this timeout exp
   If this gets delayed, other replicas will flag the primary as faulty and change the view.
 
 For now, assume a client issues requests one at a time. A client returns and moves to the next operation if and only if it receives at least $f+1$ matching replies.
+
+>[!FAQ] $f+1$ Is Optimal
+>We have $f$ faulty replicas at most. As we discussed above, we assume they can be really strong, and as such, they can instantly know that a client submitted a request. Thus, a scenario here would be for them to immediately tell the client that the operation is done, and this would immediately violate linearizability (if the client reads back the value that it wrote next, it can get garbage). Thus, $f+1$ is the minimum number of answers that you need to make this work.
 ## Primary Operation
 
 The primary walks the replicas through 3 stages; *pre-prepare*, *prepare* and *commit*. 
@@ -133,7 +138,7 @@ Let $L_i$ be the log of node $i$, we define the predicate $\text{pre-prepared}$ 
 $$
 \text{pre-prepared(m, v, n, i)} \iff \langle \text{PRE-PREPARE}, v, n, D(m) \rangle_{\sigma_p} \in L_i
 $$
-For some primary node $p \neq i$.
+For some primary node $i \neq p$.
 ### Prepare
 
 If a `PRE-PREPARE` is accepted, we say that the replica is in *Prepare* phase and it announces this by screaming $\langle \text{PREPARE}, v, n, d, i \rangle_{\sigma_i}$. Both this `PREPARE` message and the entire `PRE-PREPARE` message are appended to the log. If the `PRE-PREPARE` was rejected, we do nothing.
@@ -160,7 +165,7 @@ The above definition gives us a nice invariant. In particular:
 > \end{align}
 > $$
 
-This means that for a given view, and sequence number, no two messages with the different digests can be prepared for commit at the same time. This means that messages with different digests within the same view $v$, MUST be assigned different values of $n$, and this implies a total ordering on them as long as $n$ increases monotonically.
+This means that for a given view, and sequence number, no two messages with different digests can be prepared for commit at the same time. This means that messages with different digests within the same view $v$, MUST be assigned different values of $n$, and this implies a total ordering on them as long as $n$ increases monotonically.
 
 >[!EXAMPLE] Proof Of Invariant 1
 >Assume the contrary, so there must exist some message with a different digest that is also prepared at the same time as $m$. Noting the definition for $\text{prepared}$ implies that:
@@ -169,13 +174,17 @@ This means that for a given view, and sequence number, no two messages with the 
 >- Both messages have been pre-prepared
 >- Both messages have a match set at least as large as $2f$
 >
-> These imply a total of $2f+1$ distinct nodes (the primary and $2f$ backups) have a `PRE-PREPARE` or `PREPARE` with the same values of $v$ and $n$ in their logs. 
+> These imply at least a total of $2f+1$ distinct nodes (the primary and $2f$ backups) have a `PRE-PREPARE` or `PREPARE` with the same values of $v$ and $n$ in their logs.
 > 
 > We have at 2 prepared messages, thus a total of $2(2f+1)=4f+2$ log entries exist with the same $v$ and $n$, and by pigeon-holing it is obvious that there must be $f+1$ distinct nodes that have **TWO** such entries in their logs. At least one of these nodes is not faulty, and thus we have a contradiction, because if this node is not faulty, it should have rejected one of these entries because they have the same $v$ and $n$, but the digests are different.
 
 >[!REMARK]
 >If the digests of two messages collide, the above no longer implies total ordering between differing messages, but the probability of that is very small ...
 
+>[!NOTE]  The Meaning of A *View*
+>So far, we referred to a *view* as just a number that signifies the rounds of the algorithm, but there is a much more intuitive interpretation of it (in fact, you can start from this as the definition and work backwards).
+>
+>Simply put, a *view* is just a subset of our topology, that acts as a simple primary-backup replication network. The primary is deterministically known (and we need that!)
 ### Commit
 
 Once $\text{prepared}(m, v, n, i)$ is true in a node $i$, it moves on to the `COMMIT` phase by screaming $\langle \text{COMMIT}, v, n, d, i\rangle_{\sigma_i}$. Once a node $i$ receives $2f+1$ agreeing commit messages (including its own if possible!), then it applies the operation in the client request to its state machine. The above condition can also be written as:
@@ -205,4 +214,3 @@ So essentially, when $\text{committed}(m, v, n)$ is true, a majority of non-faul
 >This is simple. The match set for `COMMIT` messages being at least $2f+1$ implies that at least $2f+1$ nodes must satisfy $\text{prepared}$.
 >
 >Of these, at least $f+1$ are non-faulty. This set of nodes is our $I$ in the definition for $\text{committed}$ and thus $\text{committed}$ is trivially satisfied from its definition.
-

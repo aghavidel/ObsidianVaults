@@ -26,7 +26,7 @@ The idea is:
 - Connect a bunch of machines, and share their resources in a pool (i.e. CPU, memory, etc.)
 - Any time some machine needs some compute, we just pick resources from the pool
 
-The price being payed here is:
+The price being paid here is:
 - **Latency:** If you fetch an object from some remote memory, you incur a cost of waiting for network.
 - **Complexity:** You must keep track of where each object is and what it is doing.
 
