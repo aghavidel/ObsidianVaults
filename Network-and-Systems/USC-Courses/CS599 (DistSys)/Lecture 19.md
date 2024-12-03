@@ -26,7 +26,7 @@ Any infrastructure that wants to handle this workload needs to have some propert
 - Fault tolerance when it comes to tasks failing or machines crashing
 - Seamless support for a heterogenous environment of GPUs and other accelerators
 
-Some RL definitions:
+Before we proceed, some RL definitions:
 - An *environment* is some system with an internal configuration that we want to communicate with and manipulate. This is what we simulate.
 - A *state* is a data structure that fully defines the current configuration of the environment
 - A *policy* is some model that accepts a *state* and outputs an *action*, which can update the current configuration of the environment.
@@ -35,7 +35,14 @@ Some RL definitions:
 - A *trajectory* is a list of consecutive observations.
 - `train` is the procedure of consuming a trajectory and updating the policy ... *somehow* ...
 
-## Ray Architeture
+>[!EXAMPLE] A Game of Chess
+>If we are training an agent to play chess:
+>- Our **Environment** would be a chessboard, and the pieces on top of it. The **State** can be described by a list of triplets $\langle x, y, p \rangle$ where $x, y$ is a location on the chessboard, and $p$ is a piece (e.g. White Bishop, Black Pawn, etc.)
+>- **Actions** are moves that manipulate the state entries. For chess, that would be a single move per turn.
+>- The **Policy** would be some algorithm that consumes the current state (perhaps storing some of the previous states internally as well), and produces an action for it.
+>- The **Reward** is hard to grasp here. But perhaps some measure of how close we are to a checkmate of the opponent.
+>- A **Trajectory** of length $K$, would be a game of $K$ moves, in which we record the state of the chessboard after each action and our reward value.
+## Ray Architecture
 
 Now, some *ray* definitions:
 - **Tasks**: These are (perhaps remote!) function calls. They accept a series of arguments and output a **read only value** as a result.
@@ -78,39 +85,46 @@ res2 = actor.inc()
 res2 = actor.inc()
 ```
 
-In the above, `resi` objects are actually *handles*, they refer to some object in remote memory.
+In the above, `res<i>` objects are actually *handles*, they refer to some object in remote memory.
 In Ray, these are kept in a Redis datastore, a node called *Global Control Store* (GCS). The GCS maintains multiple tables:
 
 - **Table of Objects:** Containing references and handles for all generated objects
 - **Table of Actors and Tasks**: Containing references to all tasks and actors submitted
 
-The data is kept read-only as much as possible. We cannot accept the burden of updating in place and synchronizing.
+The data is kept read-only as much as possible. We cannot accept the burden of updating in place and synchronizing (e.g. the Spark way of making things embarrassingly parallel)
 
 >[!FAQ] The Class Quiz Answers
->For global scehduling:
->- Progress of tasks is not used.
->- Location and Size of inputs is used and is queried from the GCS.
->- Serialized input data is not used. Just knowing the input size is enough.
->- The queue size and resource availability of a node is signaled from its heartbeat messages.
+>Things that are/aren't used for scheduling:
+>- Progress of tasks **is not used** (too finicky to act upon or even collect)
+>- Location and Size of inputs **is used** and is queried from the GCS (Obviously!)
+>- Serialized input data **is not used** (Just knowing the input size is enough)
+>- The queue size and resource availability of a node **is used**, and it is signaled from its heartbeat messages.
 
 The GCS provides the shared memory needed to glue things together, but the question of where to actually do the computation still remains.
 
-Computations are done in separate nodes that connection to GCS. Each node has its own local scheduler that tries to utilize its resources locally as much as possible, and only bother other nodes if it cannot feasibly handle the task by itself. To do this, a global scheduler exists that handles task and actor assignments to other nodes, thus, *scheduling has a hierarchy*, and this is the key for scheduling huge amounts of tasks per second.
+Computations are done in separate nodes that connect to GCS. Each node has its own local scheduler that tries to utilize its resources locally as much as possible, and only bother other nodes if it cannot feasibly handle the task by itself. To do this, a global scheduler exists that handles task and actor assignments to other nodes, thus, *scheduling has a hierarchy*, and <u>this is the key for scheduling huge amounts of tasks per second</u>.
 
 ![[Pasted image 20241107130827.png|500]]
 
 
 ## Ray Operation
 
-Here is how a task is executed:
+Some Ray terms:
+- **Global Control Store (GCS):** A sharded Redis instance that keeps track of object IDs, making sure that we can always get a pointer to where an object actually is. Objects can be data, tasks or actors.
+- **Object Table:** A table in GCS that maps object IDs (AKA object *handles*) to where we can find them.
+- **Object Store:** A local database in each node that stores actual data for some objects and their handles.
+- **Local Scheduler:** A scheduler that makes decision about executions for a task issued from its local node. If it is overloaded, it seeks help from the Global Scheduler.
+- **Global Scheduler:** A scheduler that has a global view into what is happening in other nodes. To make the system scalable, the Global Scheduler must be seldom invoked, and most of its time should be spent collecting information about the state of each worker to make accurate decisions when it counts.
+
+With the above in mind, here is how a task is executed:
 
 ![[Pasted image 20241107131104.png|500]]
 
-- Once `ray.remote` has annotated a function, a function object is created in GCS, which can then be assigned to some worker for future execution (in the above, it is assigned to node `N2`)
+- Once `ray.remote` has annotated a function, a function object (i.e. a Task) is created in GCS, which can then be assigned to some worker for future execution (in the above, it is assigned to node `N2`, but *not yet*, assignment is done lazily)
 - When `add.remote`, i.e. the function above is actually called, it goes to the local scheduler and sees if it has a local worker to execute it. 
 - No worker can locally handle the task, thus we bother the global scheduler, which queries the function table and realizes that a worker in `N2` can handle the task.
-- The task then gets execute, which requires two arguments, `a` and `b`.  In the above, both `a` and `b` are remote objects (they have a reference in the object table in GCS). The object *reference* is in the GCS (i.e. it knows where each object is), but the object itself can be in remote nodes. In particular, it is in the *Object Store* of each node.
-- In the above example, `b` is already in node 2, but `a` is in remote node 1. After querying the GCS, all objects required to execute the task can be made locally available in node `N2`, and once that is done, the task is execute and the result handle is written to GCS.
+- The task then gets executed, which requires two arguments, `a` and `b`.  In the above, both `a` and `b` are remote objects (they have a reference in the object table in GCS). The object *reference* is in the GCS (i.e. it knows where each object is), but the object itself can be in remote nodes. In particular, it is in the *Object Store* of each node.
+- In the above example, `b` is already in node 2, but `a` is in remote node 1. After querying the GCS, all objects required to execute the task can be made locally available in node `N2`, and once that is done, the task is executed and the result handle is written to GCS.
 
 So, how to actually *get* the result?
 
@@ -121,3 +135,18 @@ Once `ray.get` is executed:
 - The result of the computation of the task, referred with $id_c$ in the above, is originally in the object store of `N2` (where it actually got generated in the first place).
 - An RPC is executed that transfers the remote object of `c` in node `N2` to the local object store of `N1`. 
 - Once the RPC is done, we get the result locally in node `N1` by just reading the value in object store.
+
+Note that `N2` never initiates a transfer for object `c` by itself, it only writes its handle to the GCS. The reason for this is that `N2` has no idea who actually needs the result of the task, since we cannot wait for `get` to be executed first, and GCS isn't labeling tasks with who issued them (at least not in the above).
+Thus, only after step 5 do we actually realize in `N1` that `c` is stored in `N2`, and the RPC invocation from `N1` is the thing that initiates the replication of `c` on demand. Also this RPC is a bit more tricky than just a byte stream, since not only should it transfer the object, it should also update the GCS that `N1` now also has a replica of `c`.
+
+Obviously, the update to GCS must be done *after* the replication:
+- If GCS is updated before replication, a failure of replication would cause the object to be absent at the destination, whereas future queries to GCS would show erroneously that the object is actually there.
+- If we switch the two, then we would be correct. There is however a chance that replication succeeds while GCS update fails. In that case, we would have to repeat the replication step to be safe, and we also need some garbage collection in the Object Store to account for the previously replicated data to be cleaned.
+
+The above works pretty well:
+
+![[Pasted image 20241203050639.png|500]]
+
+The above is for a single client's object store:
+- For small objects, we can issue numerous IO operations, but the throughput would be low (1 client just isn't enough to saturate the network)
+- For larger objects, IO operations are limited, but the throughput is high because of good network utilization.
