@@ -2,7 +2,7 @@
 
 # Ray
 
-We are shifting the focus compared to previous lectures. We are not focusing on distributed programming models. We've already seen Spark, which is coincidentally created by the same group at Berkley that made the system de jour (i.e. RISELab, supervised by Ion Stoica).
+We are shifting the focus compared to previous lectures. We are now focusing on distributed programming models. We've already seen Spark, which is coincidentally created by the same group at Berkley that made the system de jour (i.e. RISELab, supervised by Ion Stoica).
 
 ## Background
 
@@ -15,8 +15,8 @@ RL systems are unique:
 ![[Pasted image 20241107121248.png|500]]
 
 The general workflow is:
-- Some data structure (our model), has a policy embedded into it that allows it to make decisions based on observations
-- Once an action is made, it is emitted to the environment (i.e. a simulation) and observations are made. An observation is an environment state and a reward value.
+- Some data structure (our model), has a *policy* embedded into it that allows it to make decisions based on observations
+- Once an *action* is made, it is emitted to the *environment* (i.e. a simulation) and observations are made. **An observation is an environment state and a reward value**.
 - A list of observations (which we call a *trajectory*) results from repeating the above in a (perhaps parallel) loop. This trajectory is our training data.
 - Some training algorithm is used to consume the trajectory and update the policy.
 
@@ -121,4 +121,3 @@ Once `ray.get` is executed:
 - The result of the computation of the task, referred with $id_c$ in the above, is originally in the object store of `N2` (where it actually got generated in the first place).
 - An RPC is executed that transfers the remote object of `c` in node `N2` to the local object store of `N1`. 
 - Once the RPC is done, we get the result locally in node `N1` by just reading the value in object store.
-
