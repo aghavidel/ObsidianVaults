@@ -89,7 +89,7 @@ The lowest part of Borg is the `Borglet`, which is a process that handles task s
 
 (READ ABOUT THE SCHEDULER AND THE BIN-PACKING ALGORITHM ...)
 
-## Some Evaluaions
+## Some Evaluations
 ### Cell Size Effect
 
 Borg uses large cells deliberately. The reason for this is that as we mentioned, cells have high latency of communication between each other. 
@@ -98,6 +98,8 @@ Borg uses large cells deliberately. The reason for this is that as we mentioned,
 
 In the figure above, a set of 15 traces are run over a Borg cluster with varying number of cells (essentially, a cell is repeatedly divided into sub-cells). Each trace is run eleven times and the minimum and maximum completion time, as well as the 90th percentile are extracted. The figure above is plotting the 90th percentile, which shows that tail latency grows substantially when cells are divided, thus larger cells make the system much more predictable.
 
+On the other hand, you shouldn't put everything into a single cell, because of Fault Tolerance, etc.
+
 ### Resource Bucket Size
 
 Borg does not set a bucket size for resources, meaning that there is no macro unit for selecting the size of resources. 
@@ -105,4 +107,4 @@ This makes the LP that the scheduler has to solve much more difficult, but it ma
 
 ![[Pasted image 20241121133329.png|500]]
 
-In the above, you can see that resource requirements are very well spread, as such using a bucket would group too many things into the same bucket and waste a huge amount of resources. Thus, Borg does not use a bucket. The unit used for scheduling *milli-cores* for CPU and *bytes* for memory and disk.
+In the above, you can see that resource requirements are very well spread, as such using a bucket would group too many things into the same bucket and waste a huge amount of resources. Thus, Borg does not use a bucket. The unit used for scheduling are *milli-cores* for CPU and *bytes* for memory and disk.
