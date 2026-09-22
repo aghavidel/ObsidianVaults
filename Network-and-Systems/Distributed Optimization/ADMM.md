@@ -330,3 +330,191 @@ u^{k+1} & \gets u^k + (\bar{x}^{k+1} - \bar{z}^{k+1})
 \end{align}
 $$
 Pretty good with most measures, we replaced the original $z$ update scheme that required $Nn$ variables, with just an optimization over $n$ variables.
+
+# Convergence
+
+There are multiple proofs for the convergence of ADMM. We present two, one is the classic one using a Lyapunov function, and another a more general one from [here]([A General Analysis of the Convergence of ADMM](https://proceedings.mlr.press/v37/nishihara15.html)).
+
+## Proof With a Lyapunov Function
+
+Assume that:
+- $f$ and $g$ are closed, proper convex functions (*reminder:* a function is closed when its epigraph is a closed set, and it is proper when it has non-infinite points within its domain while never taking to $-\infty$).
+- The non-augmented Lagrangian given by:
+$$
+L_0 = f(x) + g(z) + y^T(Ax + Bz - c)
+$$
+  Has a saddle point like $(x^*, z^*, y^*)$, which means that it satisfies:
+$$
+L_0(x^*, z^*, y) \leq L_0(x^*, z^*, y^*) \leq L_0(x, z, y^*)
+$$
+>[!NOTE]
+>The assumptions essentially mean that:
+>- Individual ADMM steps have *some* solution, as closed, proper convex function always have a minimum that we can converge to.
+>- The existence of a saddle point for $L_0$ means that the value that $L_0$ takes for that point _must_ be finite.
+
+Just as a reminder from earlier:
+- Primal residual (infeasibility) at step $k$ is defined as
+$$
+r_k := Ax_k + Bz_k - c
+$$
+- Dual residual (infeasibility) at step $k$ is defined as
+$$
+s_{k+1} := A^TB(z_{k+1} - z_k)
+$$
+If we could get these to converge to zero, then we would achieve convergence on the original problem. Let the objective value at step $k$ be defined as:
+$$
+o_k := f(x_k) + g(z_k)
+$$
+and its optimal value be $o^*$. Note that by definition, we have the:
+$$
+\begin{aligned}
+	L_0 (x^*, z^*, y^*) &= f(x^*) + g(z^*) + \langle y^{*}, Ax^* + Bz^* - c \rangle && (\text{Definition of $L_0$}) \\
+	&= f(x^*) + g(z^*) &&(\text{Primal feasibility}) \\
+	&= o^* && (\text{Definition of $o^*$})
+\end{aligned}
+$$
+Thus from the saddle point assumption, we have that:
+$$
+o^* \leq f(x) + g(z) + \langle y^{*}, Ax + Bz - c \rangle
+$$
+Evaluating for step $k+1$ will give us:
+$$
+\tag{P1}
+o^* \leq o_{k+1} + \langle y^*, r_{k+1} \rangle
+$$
+Now, the definition for the $X$-step requires that:
+$$
+\begin{aligned}
+0 &\in \partial f(x_{k+1}) + A^Ty_k + \rho A^T(Ax_{k+1} + Bz_k - c) \\
+&= \partial f(x_{k+1}) + A^T (y_k + \rho(Ax_{k+1} + Bz_{k} - c)) \\
+&= \partial f(x_{k+1}) + A^T (y_k + \rho(Ax_{k+1} + Bz_{k+1} - c)) - \rho s_{k+1} \\
+&= \partial f(x_{k+1}) + A^Ty_{k+1} - \rho s_{k+1} \\
+&\equiv \rho s_{k+1} - A^Ty_{k+1} \in \partial(f_{k+1}) \\
+&\equiv \langle \rho s_{k+1} - A^Ty_{k+1}, x - x_{k+1} \rangle \leq f(x) - f(x_{k+1})
+\end{aligned}
+$$
+Substituting $x := x^*$ above gives:
+$$
+\langle \rho s_{k+1} - A^Ty_{k+1}, x^* - x_{k+1} \rangle \leq f(x^*) - f(x_{k+1})
+$$
+Doing the same for the $Z$-step yields:
+$$
+\langle -B^Ty_{k+1}, z^* - z_{k+1} \rangle \leq g(z^*) - g(z_{k+1})
+$$
+If we sum these up, we'll get:
+$$
+\begin{aligned}
+\langle \rho s_{k+1} - A^Ty_{k+1}, x^* - x_{k+1} \rangle + \langle -B^Ty_{k+1}, z^* - z_{k+1} \rangle \leq f(x^*) - f(x_{k+1}) + g(z^*) - g(z_{k+1})
+\end{aligned}
+$$
+Using the definition of $o_k$ and some rearrangements will give us:
+$$
+\langle \rho s_{k+1}, x^* - x_{k+1} \rangle - \langle y_{k+1}, A(x^* - x_{k+1} ) + B(z^* - z_{k+1}) \rangle \leq o^* - o_{k+1}
+$$
+Since $Ax^* + Bz^* = c$, this boils down to:
+$$
+\tag{P2}
+\rho \; s_{k+1}^T(x^* - x_{k+1}) + y_{k+1}^T r_{k+1} \leq o^* - o_{k+1}
+$$
+Unlike $\text{P1}$, $\text{P2}$ actually gives a primal bound on the objective gap:
+$$
+o_{k+1} - o^* \leq \rho \; s_{k+1}^T(x_{k+1} - x^*) - y_{k+1}^T r_{k+1}
+$$
+Which we will come back to later. For now though, if we add $\text{P1}$ and and $\text{P2}$ together and get rid of the objective gap on both sides, we get:
+$$
+0 \leq \rho \langle s_{k+1}, x_{k+1} - x^* \rangle - \langle y_{k+1} - y^*, r_{k+1} \rangle
+$$
+This relationship holds for all steps, thus in general it is asserting that:
+$$
+\langle y_{k+1} - y^*, r_{k+1} \rangle \leq \rho \langle x_{k+1} - x^*, s_{k+1} \rangle
+$$
+Which is putting a general relationship between the primal and dual infeasibilities, but we can also write it in another way:
+$$
+\begin{aligned}
+\langle x_{k+1} - x^*, A^T B (z_{k+1} - z_k) \rangle &= \langle A(x_{k+1} - x^*),B (z_{k+1} - z_k) \rangle &&\text{(By def. $s_k$)} \\
+&= \langle r_{k+1} - B(z_{k+1} - z^*),B (z_{k+1} - z_k) \rangle &&\text{(By primal feas.)}
+\end{aligned}
+$$
+Which gives the equivalent:
+$$
+\tag{P3}
+\langle y_{k+1} - y^*, r_{k+1} \rangle \leq \rho \Big\langle  r_{k+1} - B(z_{k+1} - z^*),B (z_{k+1} - z_k) \Big\rangle
+$$
+Now, we can finally define the Lyapunov function. Obviously there are many, but one that we can use is:
+$$
+H_k \triangleq ||y_k - y^*||_2^2 + ||\rho B(z_k - z^*)||_2^2
+$$
+Obviously $H_k \geq 0$, and if we take difference step:
+$$
+H_{k+1} - H_k = \langle y_{k+1} - y_k, y_{k+1} + y_k - 2y^* \rangle + \rho^2 \Big\langle B(z_{k+1} - z_k), B(z_{k+1} + z_k - 2z^*) \Big\rangle
+$$
+ADMM asserts that $y_{k+1} - y_{k} = \rho r_{k+1}$, so the first expression to the right becomes:
+$$
+\begin{aligned}
+\langle \rho r_{k+1}, 2(y_{k+1} - y^*) - \rho r_{k+1} \rangle &= - \rho^2 ||r_{k+1}||_2^2 + 2\rho \langle r_{k+1}, y_{k+1} - y^* \rangle \\
+&\leq - \rho^2 ||r_{k+1}||_2^2 + 2\rho^2 \Big\langle r_{k+1} - B(z_{k+1} - z^*),B (z_{k+1} - z_k) \Big\rangle
+\end{aligned}
+$$
+Where in the last step, we used $\text{P3}$. Now, if we add this back into the original difference step for $H$ we get:
+$$
+\begin{aligned}
+H_{k+1} - H_k &\leq -\rho^2 ||r_{k+1}||_2^2 \\
+&\quad\;+ 2\rho^2 \Big\langle r_{k+1} - B(z_{k+1} - z^*),B (z_{k+1} - z_k) \Big\rangle \\
+&\quad\;+ \rho^2 \Big\langle B(z_{k+1} - z_k), B(z_{k+1} + z_k - 2z^*) \Big\rangle \\
+&= -\rho^2 ||r_{k+1}||_2^2 + \rho^2 \Big\langle 2r_{k+1} + B(z_k - z_{k+1}), B(z_{k+1} - z_k)\Big\rangle \\
+&= -\rho^2 ||r_{k+1} - B(z_{k+1} - z_k)||_2^2
+\end{aligned}
+$$
+Thus:
+$$
+\tag{P4}
+H_{k+1} \leq H_k -\rho^2 \Big|\Big|r_{k+1} - B(z_{k+1} - z_k)\Big|\Big|_2^2
+$$
+This alone is enough to show that $H$ is Lyapunov, but it is not enough to show that the residuals (and by extension our algorithm) converge. Yet, we need not stop here. 
+Maybe I am not smart, but this step genuinely comes out of nowhere, but note two consecutive $Z$-steps like $k$ and $k+1$, which assert:
+$$
+\begin{cases}
+	-B^Ty_{k~~~~} \in \partial g(z_k) \quad\implies -\langle y_k, B(z - z_k)\rangle \leq g(z) - g(z_k)\\
+	-B^ty_{k+1} \in \partial g(z_{k+1}) \implies -\langle y_{k+1}, B(z - z_{k+1})\rangle \leq g(z) - g(z_{k+1})
+\end{cases}
+$$
+Now if we substitute $z_{k+1}$ in the first one and $z_k$ in the other and sum both up, we'll get:
+$$
+\Big\langle y_{k+1} - y_k, B(z_{k+1} - z_k) \Big\rangle = \rho \Big\langle r_{k+1}, B(z_{k+1} - z_k) \Big\rangle \leq 0
+$$
+Now, if we combine this with $\text{P4}$ we see that we can loosen the upper bound and get:
+$$
+H_{k+1} \leq H_k - \rho^2 \Bigg(\Big|\Big| r_{k+1} \Big|\Big|_2^2 + \Big|\Big| B(z_{k+1} - z_k)\Big|\Big|_2^2\Bigg)
+$$
+And if we sum this up over $k$ we get.
+$$
+\rho^2 \sum_{k=0}^{K} \Bigg(\Big|\Big| r_{k+1} \Big|\Big|_2^2 + \Big|\Big| B(z_{k+1} - z_k)\Big|\Big|_2^2\Bigg) \leq H_0 - H_{K+1} \leq H_0
+$$
+Thus it must be the case that:
+$$
+\lim_{k \to\infty} r_k = 0 \quad \lim_{k\to\infty} B(z_{k+1} - z_{k}) = 0
+$$
+So in brief we get:
+- Primal convergence, eventually $Ax + Bz - c = 0$ holds.
+- Dual convergence, eventually $s_k$ becomes zeros.
+- **No guarantee on the convergence of $Z$**! (only the difference converges, not the iterates, imagine something like $z_k := \sqrt k$ )
+
+## Proof Using a Dynamical System
+
+A more general and insightful proof for ADMM convergence was formulated by [Nishihara et.al.]([A General Analysis of the Convergence of ADMM](https://proceedings.mlr.press/v37/nishihara15.pdf)) exists that we think is worth a discussion, as it also highlights one of the headaches of ADMM, how hard it is to *tune*.
+
+This deserves its own discussion, as it goes beyond ADMM, so look into [[Optimization As A Dynamic System]].
+
+# Stopping Criterion
+
+When discussing [[#Proof With a Lyapunov Function]], we had the inequality $\text{P2}$:
+$$
+\rho \; s_{k+1}^T(x^* - x_{k+1}) + y_{k+1}^T r_{k+1} \leq o^* - o_{k+1}
+$$
+Now assume that we assert that we *wish* to stop at least in a neighborhood $\delta$ of the optimal, meaning that $||x_{k+1} - x^*||_2 \leq \delta$, then we would have that:
+$$
+\begin{aligned}
+|o_{k+1} - o^*| &\leq \rho \; |s_{k+1}^T(x_{k+1} - x^*)| + |y_{k+1}^T r_{k+1}| \\
+&\leq \rho\delta \; ||s_{k+1}||_2 + |\langle y_{k+1}, r_{k+1} \rangle|
+\end{aligned}
+$$
